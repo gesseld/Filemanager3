@@ -7,7 +7,8 @@ from fastapi import UploadFile
 from pydantic import BaseModel
 
 from .clean_text import CleanTextService
-from .ingestion import FileIngestionRequest, FileIngestionService
+from .ingestion import (FileIngestionRequest, FileIngestionService,
+                        StorageBackend)
 from .ocr import OCRService
 from .text_extraction import TextExtractionService
 
@@ -32,7 +33,18 @@ class FileProcessingResult(BaseModel):
 
 class FileProcessingPipeline:
     def __init__(self):
-        self.ingestion_service = FileIngestionService()
+        from .ingestion import StorageBackendConfig
+
+        ingestion_config = StorageBackendConfig(
+            local_path="./storage",
+            google_drive_folder_id=None,
+            google_credentials=None,
+            s3_bucket=None,
+            s3_region=None,
+            s3_access_key=None,
+            s3_secret_key=None,
+        )
+        self.ingestion_service = FileIngestionService(ingestion_config)
         self.text_extraction = TextExtractionService()
         self.ocr_service = OCRService()
         self.clean_text = CleanTextService()
@@ -51,7 +63,12 @@ class FileProcessingPipeline:
             upload_file.content_type = content_type
 
             # Stage 1: Ingestion
-            ingestion_request = FileIngestionRequest(file=upload_file)
+            ingestion_request = FileIngestionRequest(
+                file=upload_file,
+                storage_backends=[
+                    StorageBackend.LOCAL
+                ],  # Default to local storage only
+            )
             await self.ingestion_service.ingest_file(ingestion_request)
             result.stage = ProcessingStage.TEXT_EXTRACTION
 
